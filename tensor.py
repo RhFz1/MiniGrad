@@ -40,3 +40,14 @@ class Add(Function):
     def backward(ctx, grad_output):
         a, b = ctx.saved_tensors
         return grad_output, grad_output
+
+class Mulitply(Function):
+    @staticmethod
+    def forward(ctx, a, b):
+        ctx.saved_for_bacward(a, b)
+        return a * b
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        a, b = ctx.saved_tensors
+        return grad_output * b, grad_output * a
