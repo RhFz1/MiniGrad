@@ -59,44 +59,92 @@ class Tensor:
         
 class Function:
     def apply(self, arg, *x):
-        ctx = Context()
-        x = [self] + list(x)
-        ret = Tensor(arg.forward(ctx, *[t.data for t in x]))
+        ctx = Context(arg,*x)
+        ret = Tensor(arg.forward(ctx, self.data, *[t.data for t in x]))
+        ret._ctx = ctx
         return ret
 
 def register(name, fn):
     setattr(Tensor, name, partialmethod(fn.apply, fn))
 
 
+# Arithmetic and logic functions 
+
 class Add(Function):
     @staticmethod
-    def forward(ctx, a, b):
-        ctx.saved_for_bacward(a, b)
-        return a + b
+    def forward(ctx, x, y):
+        ctx.saved_for_bacward(x, y)
+        return x + y
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        return 1.0 * grad_output, 1.0 * grad_output
+register('Add', Add)
+
+class Multiply(Function):
+    @staticmethod
+    def forward(ctx, x, y):
+        ctx.saved_for_backward(x, y)
+        return x * y
 
     @staticmethod
     def backward(ctx, grad_output):
-        a, b = ctx.saved_tensors
-        return grad_output, grad_output
+        x, y = ctx.saved_tensors
+        return y * grad_output, x * grad_output
+register('Mul', Multiply)
 
-class Mulitply(Function):
+class ReLU(Function):
     @staticmethod
-    def forward(ctx, a, b):
-        ctx.saved_for_bacward(a, b)
-        return a * b
-
+    def forward(ctx, input):
+        ctx.saved_for_backward(input)
+        return np.maximum(input, 0)
+    
     @staticmethod
     def backward(ctx, grad_output):
-        a, b = ctx.saved_tensors
-        return grad_output * b, grad_output * a
+        input,  = ctx.saved_tensors
+        grad_input = grad_output.copy()
+        grad_input[input < 0] = 0
+        return grad_input
+register('ReLU', ReLU)
 
 class Dot(Function):
     @staticmethod
-    def forward(ctx, input, weight):
-        ctx.saved_for_bacward(input, weight)
-        return input.dot(weight)
-
+    def forward(ctx, x, y):
+        ctx.saved_for_backward(x, y)
+        return x.dot(y)
+    
     @staticmethod
     def backward(ctx, grad_output):
-        input, weight = ctx.saved_tensors
-        return grad_output.dot(weight.T), input.Y.dot(grad_output)
+        x, y = ctx.saved_tensors
+        grad_x = grad_output.dot(y.T)
+        grad_y = grad_output.T.dot(x).T
+        return grad_x, grad_y
+register('Dot', Dot)
+
+class Sum(Function):
+    @staticmethod
+    def forward(ctx, input):
+        ctx.saved_for_backward(input)
+        return np.array([input.sum()])
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, = ctx.saved_tensors
+        return np.ones_like(input) * grad_output
+register('Sum', Sum)
+
+class LogSoftMax(Function):
+    @staticmethod
+    def forward(ctx, input):
+        def logsumexp(x):
+            c = x.max(axis = 1) # this is to handle exp overflows
+            return c + np.log(np.exp(x - c.reshape(-1, 1))).sum(axis = 1)
+        output = input - logsumexp(input).reshape((-1, 1))
+        ctx.save_for_backward(output)
+        return output
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        output, = ctx.saved_tensors
+        return grad_output - np.exp(output) * grad_output.sum(axis = 1).reshape((-1, 1))
+register('LogSoftMax', LogSoftMax)
