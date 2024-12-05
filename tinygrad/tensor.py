@@ -9,7 +9,7 @@ class Context:
         self.parents = tensors
         self.saved_tensors = []
 
-    def saved_for_bacward(self, *x):
+    def save_for_backward(self, *x):
         self.saved_tensors.extend(x)
 
 class Tensor:
@@ -29,7 +29,7 @@ class Tensor:
     
     def backward(self, allow_fill=True):
 
-        print("Backward on", self)
+        # print("Backward on", self)
 
         if self._ctx is None:
             return
@@ -46,11 +46,11 @@ class Tensor:
         if len(self._ctx.parents) == 1:
             grads = [grads]
         
-        for t, grad in zip(self._ctx.parents, grads):
-            if grad.shape != t.data.shape:
-                print("grad shape must match tensor shape in %r, %r != %r" % (self._ctx.arg, grad.shape, t.data.shape))
+        for t, g in zip(self._ctx.parents, grads):
+            if g.shape != t.data.shape:
+                print("grad shape must match tensor shape in %r, %r != %r" % (self._ctx.arg, g.shape, t.data.shape))
                 assert(False)
-            t.grad = grad
+            t.grad = g
             t.backward(allow_fill=False)
     
     def mean(self):
@@ -59,7 +59,7 @@ class Tensor:
         
 class Function:
     def apply(self, arg, *x):
-        ctx = Context(arg,*x)
+        ctx = Context(arg,self,*x)
         ret = Tensor(arg.forward(ctx, self.data, *[t.data for t in x]))
         ret._ctx = ctx
         return ret
@@ -73,30 +73,29 @@ def register(name, fn):
 class Add(Function):
     @staticmethod
     def forward(ctx, x, y):
-        ctx.saved_for_bacward(x, y)
         return x + y
     
     @staticmethod
     def backward(ctx, grad_output):
-        return 1.0 * grad_output, 1.0 * grad_output
-register('Add', Add)
+        return grad_output,grad_output
+register('add', Add)
 
 class Multiply(Function):
     @staticmethod
     def forward(ctx, x, y):
-        ctx.saved_for_backward(x, y)
+        ctx.save_for_backward(x, y)
         return x * y
 
     @staticmethod
     def backward(ctx, grad_output):
         x, y = ctx.saved_tensors
         return y * grad_output, x * grad_output
-register('Mul', Multiply)
+register('mul', Multiply)
 
 class ReLU(Function):
     @staticmethod
     def forward(ctx, input):
-        ctx.saved_for_backward(input)
+        ctx.save_for_backward(input)
         return np.maximum(input, 0)
     
     @staticmethod
@@ -105,12 +104,12 @@ class ReLU(Function):
         grad_input = grad_output.copy()
         grad_input[input < 0] = 0
         return grad_input
-register('ReLU', ReLU)
+register('relu', ReLU)
 
 class Dot(Function):
     @staticmethod
     def forward(ctx, x, y):
-        ctx.saved_for_backward(x, y)
+        ctx.save_for_backward(x, y)
         return x.dot(y)
     
     @staticmethod
@@ -119,32 +118,33 @@ class Dot(Function):
         grad_x = grad_output.dot(y.T)
         grad_y = grad_output.T.dot(x).T
         return grad_x, grad_y
-register('Dot', Dot)
+register('dot', Dot)
 
 class Sum(Function):
     @staticmethod
     def forward(ctx, input):
-        ctx.saved_for_backward(input)
+        ctx.save_for_backward(input)
         return np.array([input.sum()])
     
     @staticmethod
     def backward(ctx, grad_output):
         input, = ctx.saved_tensors
         return np.ones_like(input) * grad_output
-register('Sum', Sum)
+register('sum', Sum)
 
-class LogSoftMax(Function):
-    @staticmethod
-    def forward(ctx, input):
-        def logsumexp(x):
-            c = x.max(axis = 1) # this is to handle exp overflows
-            return c + np.log(np.exp(x - c.reshape(-1, 1))).sum(axis = 1)
-        output = input - logsumexp(input).reshape((-1, 1))
-        ctx.save_for_backward(output)
-        return output
-    
-    @staticmethod
-    def backward(ctx, grad_output):
-        output, = ctx.saved_tensors
-        return grad_output - np.exp(output) * grad_output.sum(axis = 1).reshape((-1, 1))
-register('LogSoftMax', LogSoftMax)
+class LogSoftmax(Function):
+  @staticmethod
+  def forward(ctx, input):
+    def logsumexp(x):
+      #return np.log(np.exp(x).sum(axis=1))
+      c = x.max(axis=1)
+      return c + np.log(np.exp(x-c.reshape((-1, 1))).sum(axis=1))
+    output = input - logsumexp(input).reshape((-1, 1))
+    ctx.save_for_backward(output)
+    return output
+
+  @staticmethod
+  def backward(ctx, grad_output):
+    output, = ctx.saved_tensors
+    return grad_output - np.exp(output)*grad_output.sum(axis=1).reshape((-1, 1))
+register('logsoftmax', LogSoftmax)
