@@ -1,25 +1,42 @@
 #!/usr/bin/env python
+import os
+import requests
+import hashlib
+import gzip
 import numpy as np
 from tinygrad.tensor import Tensor
 from tqdm import trange
 
-# load the mnist dataset
+# Function to download and load MNIST data
+def fetch_mnist(url, filename):
+    # Ensure the data directory exists
+    fp = os.path.join("/tmp", hashlib.md5(url.encode('utf-8')).hexdigest())
+    
+    # Download the file if it doesn't exist
+    if not os.path.exists(fp):
+        print(f"Downloading {filename}...")
+        data = requests.get(url, stream=True).content
+        with open(fp, 'wb') as file:
+           file.write(data)
+    else:
+       with open(fp, "rb") as f:
+        data = f.read()
+    return np.frombuffer(gzip.decompress(data), dtype=np.uint8).copy()
 
-def fetch(url):
-  import requests, gzip, os, hashlib, numpy
-  fp = os.path.join("/tmp", hashlib.md5(url.encode('utf-8')).hexdigest())
-  if not os.path.isfile(fp):
-    with open(fp, "rb") as f:
-      dat = f.read()
-  else:
-    with open(fp, "wb") as f:
-      dat = requests.get(url).content
-      f.write(dat)
-  return numpy.frombuffer(gzip.decompress(dat), dtype=np.uint8).copy()
-X_train = fetch("http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz")[0x10:].reshape((-1, 28, 28))
-Y_train = fetch("http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz")[8:]
-X_test = fetch("http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz")[0x10:].reshape((-1, 28, 28))
-Y_test = fetch("http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz")[8:]
+# URLs for the MNIST dataset
+base_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
+files = {
+    "train_images": "train-images-idx3-ubyte.gz",
+    "train_labels": "train-labels-idx1-ubyte.gz",
+    "test_images": "t10k-images-idx3-ubyte.gz",
+    "test_labels": "t10k-labels-idx1-ubyte.gz"
+}
+
+# Fetch the data
+X_train = fetch_mnist(base_url + files["train_images"], files["train_images"])[0x10:].reshape((-1, 28, 28))
+Y_train = fetch_mnist(base_url + files["train_labels"], files["train_labels"])[8:]
+X_test = fetch_mnist(base_url + files["test_images"], files["test_images"])[0x10:].reshape((-1, 28, 28))
+Y_test = fetch_mnist(base_url + files["test_labels"], files["test_labels"])[8:]
 
 # train a model
 
