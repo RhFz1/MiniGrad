@@ -2,16 +2,6 @@ from functools import partialmethod
 import numpy as np
 
 
-class Context:
-    
-    def __init__(self, arg, *tensors):
-        self.arg = arg
-        self.parents = tensors
-        self.saved_tensors = []
-
-    def save_for_backward(self, *x):
-        self.saved_tensors.extend(x)
-
 class Tensor:
 
     def __init__(self, data):
@@ -57,15 +47,24 @@ class Tensor:
         div = Tensor(np.array([1 / self.data.size]))
         return self.sum().mul(div)
         
+# The Function is the Context
 class Function:
-    def apply(self, arg, *x):
-        ctx = Context(arg,self,*x)
-        ret = Tensor(arg.forward(ctx, self.data, *[t.data for t in x]))
-        ret._ctx = ctx
-        return ret
+  def __init__(self, *tensors):
+    self.parents = tensors
+    self.saved_tensors = []
 
-def register(name, fn):
-    setattr(Tensor, name, partialmethod(fn.apply, fn))
+  def save_for_backward(self, *x):
+    self.saved_tensors.extend(x)
+
+  # note that due to how partialmethod works, self and arg are switched
+  def apply(self, arg, *x):
+    ctx = arg(self, *x)
+    ret = Tensor(arg.forward(ctx, self.data, *[t.data for t in x]))
+    ret._ctx = ctx
+    return ret
+
+def register(name, fxn):
+  setattr(Tensor, name, partialmethod(fxn.apply, fxn))
 
 
 # Arithmetic and logic functions 
