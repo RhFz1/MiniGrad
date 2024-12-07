@@ -4,9 +4,9 @@ import requests
 import hashlib
 import gzip
 import numpy as np
+import tinygrad.optim as optim
 from tinygrad.tensor import Tensor
 from tqdm import trange
-from tinygrad.optim import SGD
 
 # Function to download and load MNIST data
 def fetch_mnist(url, filename):
@@ -56,7 +56,8 @@ class TinyBobNet:
 # model and optimizer
 
 model = TinyBobNet()
-optim = SGD([model.l1, model.l2], lr=0.01)
+#optim = optim.SGD([model.l1, model.l2], lr=0.01)
+optim = optim.Adam([model.l1, model.l2], lr=3e-4)
 
 BS = 128
 losses, accuracies = [], []
