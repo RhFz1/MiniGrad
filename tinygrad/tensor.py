@@ -1,5 +1,43 @@
+# Trying to implement George Hotz's tinygrad in Python
 from functools import partialmethod
 import numpy as np
+
+'''
+    Understanding for reference
+    Let's dive into the key components:
+
+    Tensor Class
+    The Tensor class is the fundamental building block of this computational framework. Think of it like a smart container for numerical data that can track its own computational history and compute gradients.
+
+    Key attributes:
+
+        data: The actual numerical data (a NumPy array)
+        grad: Stores the gradient of this tensor
+        _ctx: Stores the context of how this tensor was created (its computational origin)
+
+    Key methods:
+
+        __init__: Initializes a tensor, ensuring it's a NumPy array
+        __str__: Provides a readable string representation
+        backward(): The core gradient computation method
+
+    If no context exists, does nothing
+    If no gradient exists, initializes it (for scalar tensors)
+    Recursively computes gradients by calling the backward method of parent operations
+
+    Function Class
+    The Function class represents a single computational operation (like addition, multiplication, ReLU). It's like a recipe for how to compute forward and backward passes.
+
+    Key methods:
+
+        __init__: Tracks parent tensors and saved tensors
+        save_for_backward(): Stores tensors needed for gradient computation
+        apply(): Applies the operation, creating a new tensor and tracking its context
+
+
+        Registration Mechanism
+        The register() function dynamically adds methods to the Tensor class. This allows you to call operations like tensor.add() or tensor.mul() directly.
+'''
 
 
 class Tensor:
@@ -31,14 +69,14 @@ class Tensor:
         
         assert self.grad is not None, "grad is None"
 
-        grads = self._ctx.arg.backward(self._ctx, self.grad)
+        grads = self._ctx.backward(self._ctx, self.grad)
 
         if len(self._ctx.parents) == 1:
             grads = [grads]
         
         for t, g in zip(self._ctx.parents, grads):
             if g.shape != t.data.shape:
-                print("grad shape must match tensor shape in %r, %r != %r" % (self._ctx.arg, g.shape, t.data.shape))
+                print("grad shape must match tensor shape in %r, %r != %r" % (self._ctx, g.shape, t.data.shape))
                 assert(False)
             t.grad = g
             t.backward(allow_fill=False)
