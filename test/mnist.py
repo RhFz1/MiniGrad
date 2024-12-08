@@ -1,54 +1,15 @@
 #!/usr/bin/env python
-import os
-import requests
-import hashlib
-import gzip
 import numpy as np
 import tinygrad.optim as optim
 from tinygrad.tensor import Tensor
+from tinygrad.utils import layer_init_uniform, fetch_mnist
 from tqdm import trange
 
-# Function to download and load MNIST data
-def fetch_mnist(url, filename):
-    # Ensure the data directory exists
-    fp = os.path.join("/tmp", hashlib.md5(url.encode('utf-8')).hexdigest())
-    
-    # Download the file if it doesn't exist
-    if not os.path.exists(fp):
-        print(f"Downloading {filename}...")
-        data = requests.get(url, stream=True).content
-        with open(fp, 'wb') as file:
-           file.write(data)
-    else:
-       with open(fp, "rb") as f:
-        data = f.read()
-    return np.frombuffer(gzip.decompress(data), dtype=np.uint8).copy()
-
-# URLs for the MNIST dataset
-base_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
-files = {
-    "train_images": "train-images-idx3-ubyte.gz",
-    "train_labels": "train-labels-idx1-ubyte.gz",
-    "test_images": "t10k-images-idx3-ubyte.gz",
-    "test_labels": "t10k-labels-idx1-ubyte.gz"
-}
-
-# Fetch the data
-X_train = fetch_mnist(base_url + files["train_images"], files["train_images"])[0x10:].reshape((-1, 28, 28))
-Y_train = fetch_mnist(base_url + files["train_labels"], files["train_labels"])[8:]
-X_test = fetch_mnist(base_url + files["test_images"], files["test_images"])[0x10:].reshape((-1, 28, 28))
-Y_test = fetch_mnist(base_url + files["test_labels"], files["test_labels"])[8:]
-
-# train a model
-
-def layer_init(m, h):
-  ret = np.random.uniform(-1., 1., size=(m,h))/np.sqrt(m*h)
-  return ret.astype(np.float32)
-
+X_train, Y_train, X_test, Y_test = fetch_mnist()
 class TinyBobNet:
   def __init__(self):
-    self.l1 = Tensor(layer_init(784, 128))
-    self.l2 = Tensor(layer_init(128, 10))
+    self.l1 = Tensor(layer_init_uniform(784, 128))
+    self.l2 = Tensor(layer_init_uniform(128, 10))
 
   def forward(self, x):
     return x.dot(self.l1).relu().dot(self.l2).logsoftmax()
