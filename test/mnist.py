@@ -28,7 +28,7 @@ for i in (t := trange(1000)):
   x = Tensor(X_train[samp].reshape((-1, 28*28)))
   Y = Y_train[samp]
   y = np.zeros((len(samp),10), np.float32)
-  y[range(y.shape[0]),Y] = -1.0
+  y[range(y.shape[0]),Y] = -10.0
   y = Tensor(y)
   
   # network

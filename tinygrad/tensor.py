@@ -49,7 +49,7 @@ class Tensor:
             assert False
         self.data = data
         self.grad = None
-
+        self.shape = data.shape
         # dont understand the use of this part
         self._ctx = None
     def __str__(self) -> str:
