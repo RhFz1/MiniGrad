@@ -185,3 +185,21 @@ class LogSoftmax(Function):
     output, = ctx.saved_tensors
     return grad_output - np.exp(output)*grad_output.sum(axis=1).reshape((-1, 1))
 register('logsoftmax', LogSoftmax)
+
+
+class Conv2D(Function):
+    @staticmethod
+    def forward(ctx, x, w):
+        cout, cin ,kh, kw = w.shape
+        ret = np.zeros((cout, x.shape[0] - kh + 1, x.shape[1] - kw + 1), dtype=w.dtype)
+
+        for co in range(cout):
+            for i in range(ret.shape[1]):
+                for j in range(ret.shape[2]):
+                    ret[co, i, j] = (x[:, i:i+kh, j:j+kw] * w[co]).sum()
+        ctx.save_for_backward(x, w)
+        return ret
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        raise Exception("Not implemented")
